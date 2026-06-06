@@ -7,20 +7,24 @@ bot = telebot.TeleBot(BOT_TOKEN)
 
 ADMIN_ID = "8063553847"        
 
-# Apne bot ka username bina '@' ke sahi se likhein
-BOT_USERNAME = "@ASKTORNAMENT_BOT"  
+# Aapke bot ka username jo aapne bataya
+BOT_USERNAME = "ASKTORNAMENT_BOT"  
 
 SUPPORT_USERNAME = "gainoffiicialnick"  
 # ===============================================================
 
-# Sirf 1 main channel (Bina @ ke)
+# Configuration
 MAIN_CHANNEL = "eraningwithask9" 
+YOUTUBE_LINK = "https://youtube.com/@AapkaChannel" # 👈 Yahan apne YouTube channel ka link daalein
 
 REFER_BONUS = 5
+TELEGRAM_TASK_BONUS = 2   # Telegram task ke paise
+YOUTUBE_TASK_BONUS = 3    # YouTube task ke paise
 MIN_WITHDRAW = 20
 
 users_db = {}
 withdraw_requests = []
+task_requests = [] # Tasks track karne ke liye
 
 def check_join(user_id):
     try:
@@ -37,7 +41,7 @@ def start(message):
     username = message.from_user.username or "User"
     
     if user_id not in users_db:
-        users_db[user_id] = {'balance': 0, 'referred_by': None, 'ref_count': 0, 'joined': False}
+        users_db[user_id] = {'balance': 0, 'referred_by': None, 'ref_count': 0, 'joined': False, 'tasks': {'tg': False, 'yt': False}}
         
         text_split = message.text.split()
         if len(text_split) > 1:
@@ -62,8 +66,9 @@ def start(message):
 def main_menu(chat_id, username):
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add("📊 My Profile", "🔗 Refer & Earn")
-    markup.add("💰 Withdraw Money", "📞 Support")
-    bot.send_message(chat_id, f"👋 Welcome {username} to Earning Bot!\n\nYahan aap dosto ko refer karke real cash kama sakte hain.", reply_markup=markup)
+    markup.add("💰 Earning Tasks 🚀", "💰 Withdraw Money")
+    markup.add("📞 Support")
+    bot.send_message(chat_id, f"👋 Welcome {username} to Earning Bot!\n\nYahan aap tasks poore karke aur dosto ko refer karke real cash kama sakte hain.", reply_markup=markup)
 
 @bot.callback_query_handler(func=lambda call: call.data == "verify_join")
 def verify_join(call):
@@ -88,52 +93,66 @@ def verify_join(call):
     else:
         bot.answer_callback_query(call.id, "❌ Aapne abhi tak channel join nahi kiya hai!", show_alert=True)
 
-# ==================== ADMIN PANEL (BROADCAST ADDED) ====================
+# ==================== ADMIN PANEL ====================
 @bot.message_handler(commands=['admin'])
 def admin_panel(message):
     if str(message.from_user.id) != ADMIN_ID: return
     text = (f"⚙️ Admin Panel\n\n"
             f"👥 Total Users: {len(users_db)}\n\n"
             f"📢 Current Channel: @{MAIN_CHANNEL}\n\n"
-            f"👉 Channel badalne ke liye:\n/setchannel [username]\n\n"
-            f"👉 Sabhi ko message bhejne ke liye:\n/broadcast [Aapka Message]\n\n"
-            f"👉 Withdraw requests: /view_withdraws")
+            f"👉 /broadcast [Message] - Sabhi ko message bhejein\n"
+            f"👉 /view_tasks - Task Proofs check karein ✅\n"
+            f"👉 /view_withdraws - Withdraw requests")
     bot.send_message(message.chat.id, text)
 
 @bot.message_handler(commands=['broadcast'])
 def broadcast_cmd(message):
     if str(message.from_user.id) != ADMIN_ID: return
-    
-    # Message alag karna command se
     text_split = message.text.split(maxsplit=1)
-    if len(text_split) < 2:
-        return bot.send_message(message.chat.id, "❌ Galat format! Aise likhein: `/broadcast Hello dosto naya offer aaya hai`")
-        
+    if len(text_split) < 2: return bot.send_message(message.chat.id, "❌ Format: /broadcast Hello")
     broadcast_msg = text_split[1]
     success_count = 0
-    
-    # Saare users ko loop chala kar message bhejna
     for user_id in users_db.keys():
         try:
             bot.send_message(user_id, f"📢 ANNOUNCEMENT:\n\n{broadcast_msg}")
             success_count += 1
-        except Exception as e:
-            # Agar kisi user ne bot ko block kar diya hai toh error skip hoga
-            continue
-            
-    bot.send_message(message.chat.id, f"✅ Broadcast Complete!\n\nTotal {success_count} users tak message pahonch gaya.")
+        except: continue
+    bot.send_message(message.chat.id, f"✅ Broadcast Complete! {success_count} users tak pahoncha.")
 
-@bot.message_handler(commands=['setchannel'])
-def set_channel_cmd(message):
-    global MAIN_CHANNEL
+@bot.message_handler(commands=['view_tasks'])
+def view_tasks(message):
     if str(message.from_user.id) != ADMIN_ID: return
-    try:
-        parts = message.text.split()
-        new_user = parts[1].replace("@", "").strip()
-        MAIN_CHANNEL = new_user
-        bot.send_message(message.chat.id, f"✅ Main Channel Update Ho Gaya!\nNaya channel @{new_user} set ho gaya hai.")
-    except:
-        bot.send_message(message.chat.id, "❌ Use: /setchannel [new_username]")
+    if not task_requests: return bot.send_message(message.chat.id, "📁 Kkoi naya task proof pending nahi hai.")
+    
+    for req in task_requests:
+        markup = telebot.types.InlineKeyboardMarkup()
+        markup.add(
+            telebot.types.InlineKeyboardButton("Approve ✅", callback_data=f"app_t_{req['id']}"),
+            telebot.types.InlineKeyboardButton("Reject ❌", callback_data=f"rej_t_{req['id']}")
+        )
+        bot.send_photo(
+            message.chat.id, 
+            req['photo_id'], 
+            caption=f"📝 **Task Proof!**\n\n👤 User: `{req['user_id']}`\n📌 Type: **{req['type'].upper()}**\n💵 Reward: **₹{req['bonus']}**",
+            reply_markup=markup,
+            parse_mode="Markdown"
+        )
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith(('app_t_', 'rej_t_')))
+def handle_task_action(call):
+    action, _, req_id = call.data.partition('_t_')
+    req = next((r for r in task_requests if r['id'] == req_id), None)
+    if not req: return
+    
+    if action == "app":
+        users_db[req['user_id']]['balance'] += req['bonus']
+        users_db[req['user_id']]['tasks'][req['type']] = True
+        bot.send_message(req['user_id'], f"✅ **Task Approved!**\nAapka {req['type'].upper()} task sahi paya gaya. **举{req['bonus']}** aapke wallet me add kar diye gaye hain.")
+        bot.edit_message_caption(f"✅ Approved: {req['user_id']} | Type: {req['type'].upper()}", call.message.chat.id, call.message.message_id)
+    else:
+        bot.send_message(req['user_id'], f"❌ **Task Rejected!**\nAapka submitted screenshot galat ya nakli tha. Kripya sahi se task karke dubara submit karein.")
+        bot.edit_message_caption(f"❌ Rejected: {req['user_id']} | Type: {req['type'].upper()}", call.message.chat.id, call.message.message_id)
+    task_requests.remove(req)
 
 @bot.message_handler(commands=['view_withdraws'])
 def view_withdraws(message):
@@ -163,6 +182,10 @@ def handle_withdraw_action(call):
 def handle_text(message):
     user_id = str(message.from_user.id)
     if not check_join(user_id): return start(message)
+    
+    # Initialize task db structure if not exists for old users
+    if user_id in users_db and 'tasks' not in users_db[user_id]:
+        users_db[user_id]['tasks'] = {'tg': False, 'yt': False}
 
     if message.text == "📊 My Profile":
         u = users_db.get(user_id, {'balance': 0, 'ref_count': 0})
@@ -170,11 +193,14 @@ def handle_text(message):
         
     elif message.text == "🔗 Refer & Earn":
         link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
-        bot.send_message(
-            message.chat.id, 
-            f"🎁 Refer & Earn System\n\nHar ek dost ko join karwane pe aapko ₹{REFER_BONUS} milenge jaise hi wo channel join karega!\n\n🔗 Your Refer Link:\n{link}"
-        )
+        bot.send_message(message.chat.id, f"🎁 Refer & Earn System\n\nHar ek dost ko join karwane pe aapko ₹{REFER_BONUS} milenge jaise hi wo channel join karega!\n\n🔗 Your Refer Link:\n{link}")
         
+    elif message.text == "💰 Earning Tasks 🚀":
+        markup = telebot.types.InlineKeyboardMarkup()
+        markup.add(telebot.types.InlineKeyboardButton("🔹 Join Telegram Channel (₹2)", callback_data="task_tg"))
+        markup.add(telebot.types.InlineKeyboardButton("🔺 Subscribe YouTube Channel (₹3)", callback_data="task_yt"))
+        bot.send_message(message.chat.id, "🎯 **Extra Cash Tasks**\n\nNiche diye gaye tasks poore karke aap aur zyada paise kama sakte hain. Har task ka proof (screenshot) dena zaroori hai:", reply_markup=markup, parse_mode="Markdown")
+
     elif message.text == "📞 Support":
         markup = telebot.types.InlineKeyboardMarkup()
         markup.add(telebot.types.InlineKeyboardButton("💬 Contact Admin", url=f"https://t.me/{SUPPORT_USERNAME}"))
@@ -185,6 +211,39 @@ def handle_text(message):
         if bal < MIN_WITHDRAW: return bot.send_message(message.chat.id, f"❌ Minimum limit ₹{MIN_WITHDRAW} hai.")
         msg = bot.send_message(message.chat.id, "✍️ Format me likhein: UPI_ID | Amount (Example: bhai@upi | 25)")
         bot.register_next_step_handler(msg, process_withdraw)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith(('task_tg', 'task_yt')))
+def handle_task_buttons(call):
+    user_id = str(call.from_user.id)
+    task_type = "tg" if "tg" in call.data else "yt"
+    
+    if users_db[user_id]['tasks'].get(task_type, False):
+        return bot.answer_callback_query(call.id, "❌ Aap yeh task pehle hi poora kar chuke hain!", show_alert=True)
+        
+    if task_type == "tg":
+        url = f"https://t.me/{MAIN_CHANNEL}"
+        text = f"📢 **Telegram Task**\n\n1. Niche diye gaye channel ko join karein:\n👉 {url}\n\n2. Join karne ke baad ek **Screenshot** lein.\n3. Is chat me wo screenshot bhejien (As a Photo)."
+    else:
+        url = YOUTUBE_LINK
+        text = f"🔺 **YouTube Task**\n\n1. Niche diye gaye link par jaakar channel ko Subscribe karein:\n👉 {url}\n\n2. Subscribe karne ke baad ek **Screenshot** lein.\n3. Is chat me wo screenshot bhejien (As a Photo)."
+        
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+    msg = bot.send_message(call.message.chat.id, text, parse_mode="Markdown")
+    bot.register_next_step_handler(msg, lambda m: process_task_proof(m, task_type))
+
+def process_task_proof(message, task_type):
+    user_id = str(message.from_user.id)
+    if not message.photo:
+        return bot.send_message(message.chat.id, "❌ Aapne photo nahi bheji! Dobara 'Earning Tasks' me jaakar sahi se photo submit karein.")
+        
+    photo_id = message.photo[-1].file_id
+    bonus = TELEGRAM_TASK_BONUS if task_type == "tg" else YOUTUBE_TASK_BONUS
+    r_id = str(len(task_requests) + 1)
+    
+    task_requests.append({'id': r_id, 'user_id': user_id, 'type': task_type, 'photo_id': photo_id, 'bonus': bonus})
+    bot.send_message(message.chat.id, "✅ **Proof Sent!** Admin aapka screenshot verify karke 24 ghante me aapke paise credit kar dega.")
+    try: bot.send_message(ADMIN_ID, f"🔔 **Naya Task Proof aaya hai!** Check karne ke liye `/view_tasks` type karein.")
+    except: pass
 
 def process_withdraw(message):
     try:
@@ -202,4 +261,4 @@ def process_withdraw(message):
     except: bot.send_message(message.chat.id, "❌ Format error!")
 
 bot.infinity_polling()
-        
+    
