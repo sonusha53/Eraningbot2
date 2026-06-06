@@ -8,7 +8,7 @@ bot = telebot.TeleBot(BOT_TOKEN)
 ADMIN_ID = "8063553847"        
 
 # Apne bot ka username bina '@' ke sahi se likhein
-BOT_USERNAME = "Apne_Bot_Ka_Username_Yahan_Likho"  
+BOT_USERNAME = "@ASKTORNAMENT_BOT"  
 
 SUPPORT_USERNAME = "gainoffiicialnick"  
 # ===============================================================
