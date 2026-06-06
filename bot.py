@@ -2,14 +2,22 @@ import os
 import telebot
 
 # ==================== AAPKI INITIAL DETAILS ====================
+# 1. Apne BotFather wale bot ka Token yahan daalein
 BOT_TOKEN = "8984080434:AAHn0dvGU4FOumJhfRFXzk2-FWHtELq4eQg"
 bot = telebot.TeleBot(BOT_TOKEN)
 
+# 2. Aapki Telegram Account ID (Admin ID)
 ADMIN_ID = "8063553847"        
-SUPPORT_USERNAME = "gainoffiicialnick"  # bina @ ke
+
+# 3. Aapke Bot ka Username bina '@' ke (Example: SonuEarningBot)
+# ISSE SAHI SE LIKHNA TAAKI REFER LINK 100% SAHI BANE
+BOT_USERNAME = "Apne_Bot_Ka_Username_Yahan_Likho"  
+
+# 4. Aapka Support ya Personal Username bina '@' ke
+SUPPORT_USERNAME = "gainoffiicialnick"  
 # ===============================================================
 
-# Ab yahan sirf 1 hi main channel rahega (Bina @ ke likhein)
+# Sirf 1 main channel jo join karna zaroori hai (Bina @ ke)
 MAIN_CHANNEL = "eraningwithask9" 
 
 REFER_BONUS = 7
@@ -19,14 +27,14 @@ users_db = {}
 withdraw_requests = []
 
 def check_join(user_id):
-    """Check karta hai ki user ne wo 1 channel join kiya hai ya nahi"""
+    """Check karta hai ki user ne channel join kiya hai ya nahi"""
     try:
         member = bot.get_chat_member(f"@{MAIN_CHANNEL}", int(user_id))
         if member.status in ['left', 'kicked']:
             return False
         return True
     except Exception as e:
-        # Agar bot channel me admin nahi hai toh crash na ho, isliye True kar dega
+        # Agar bot channel me admin nahi hai toh user ko bypass kar dega taaki bot crash na ho
         return True
 
 @bot.message_handler(commands=['start'])
@@ -37,14 +45,14 @@ def start(message):
     if user_id not in users_db:
         users_db[user_id] = {'balance': 0, 'referred_by': None, 'ref_count': 0, 'joined': False}
         
-        # Refer tracking
+        # Refer link tracking system
         text_split = message.text.split()
         if len(text_split) > 1:
             referrer_id = text_split[1]
             if referrer_id != user_id and referrer_id in users_db:
                 users_db[user_id]['referred_by'] = referrer_id
 
-    # Sirf 1 Channel ka Force Join Check
+    # Force Join Check
     if not check_join(user_id):
         markup = telebot.types.InlineKeyboardMarkup()
         markup.add(telebot.types.InlineKeyboardButton(text="📢 Join Channel", url=f"https://t.me/{MAIN_CHANNEL}"))
@@ -73,7 +81,7 @@ def verify_join(call):
         try: bot.delete_message(call.message.chat.id, call.message.message_id)
         except: pass
         
-        # Referral points calculation
+        # Referral bonus add karna
         if users_db.get(user_id) and users_db[user_id]['referred_by'] and not users_db[user_id]['joined']:
             ref_id = users_db[user_id]['referred_by']
             if ref_id in users_db:
@@ -141,13 +149,21 @@ def handle_text(message):
     if message.text == "📊 My Profile":
         u = users_db.get(user_id, {'balance': 0, 'ref_count': 0})
         bot.send_message(message.chat.id, f"👤 **Profile Details**\n\n💰 Balance: **₹{u['balance']}**\n👥 Total Refers: **{u['ref_count']}**", parse_mode="Markdown")
+        
     elif message.text == "🔗 Refer & Earn":
-        bot_username = bot.get_me().username
-        bot.send_message(message.chat.id, f"🎁 **Refer & Earn**\n\nPer refer aapko **₹{REFER_BONUS}** milenge!\n\n🔗 **Your Refer Link:**\nhttps://t.me/{bot_username}?start={user_id}", parse_mode="Markdown")
+        # Fix: Yahan fixed variable use kiya hai taaki error na aaye
+        link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
+        bot.send_message(
+            message.chat.id, 
+            f"🎁 **Refer & Earn System**\n\nHar ek dost ko join karwane pe aapko **₹{REFER_BONUS}** milenge jab wo channel join karega!\n\n🔗 **Your Refer Link:**\n{link}",
+            parse_mode="Markdown"
+        )
+        
     elif message.text == "📞 Support":
         markup = telebot.types.InlineKeyboardMarkup()
         markup.add(telebot.types.InlineKeyboardButton("💬 Contact Admin", url=f"https://t.me/{SUPPORT_USERNAME}"))
         bot.send_message(message.chat.id, "🛠️ **Support**\n\nAdmin se baat karne ke liye niche click karein.", reply_markup=markup, parse_mode="Markdown")
+        
     elif message.text == "💰 Withdraw Money":
         bal = users_db.get(user_id, {'balance': 0})['balance']
         if bal < MIN_WITHDRAW: return bot.send_message(message.chat.id, f"❌ **Minimum limit ₹{MIN_WITHDRAW} hai.**")
@@ -170,4 +186,4 @@ def process_withdraw(message):
     except: bot.send_message(message.chat.id, "❌ Format error!")
 
 bot.infinity_polling()
-      
+        
