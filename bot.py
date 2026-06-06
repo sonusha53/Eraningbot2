@@ -16,7 +16,7 @@ SUPPORT_USERNAME = "gainoffiicialnick"
 # Sirf 1 main channel (Bina @ ke)
 MAIN_CHANNEL = "eraningwithask9" 
 
-REFER_BONUS = 7
+REFER_BONUS = 5
 MIN_WITHDRAW = 20
 
 users_db = {}
@@ -50,7 +50,6 @@ def start(message):
         markup.add(telebot.types.InlineKeyboardButton(text="📢 Join Channel", url=f"https://t.me/{MAIN_CHANNEL}"))
         markup.add(telebot.types.InlineKeyboardButton(text="✅ Joined / Verify", callback_data="verify_join"))
         
-        # Fixed Text format
         bot.send_message(
             message.chat.id, 
             f"❌ Access Denied!\n\nBot use karne ke liye aapko hamare official channel @{MAIN_CHANNEL} ko join karna hoga. Join karke niche diye gaye Verify button par click karein:", 
@@ -89,12 +88,40 @@ def verify_join(call):
     else:
         bot.answer_callback_query(call.id, "❌ Aapne abhi tak channel join nahi kiya hai!", show_alert=True)
 
-# ==================== ADMIN PANEL ====================
+# ==================== ADMIN PANEL (BROADCAST ADDED) ====================
 @bot.message_handler(commands=['admin'])
 def admin_panel(message):
     if str(message.from_user.id) != ADMIN_ID: return
-    text = f"⚙️ Admin Panel\n\n👥 Total Users: {len(users_db)}\n\n📢 Current Channel: @{MAIN_CHANNEL}\n\n👉 Channel badalne ke liye:\n/setchannel [username]\n\n👉 Withdraw requests dekhne ke liye: /view_withdraws"
+    text = (f"⚙️ Admin Panel\n\n"
+            f"👥 Total Users: {len(users_db)}\n\n"
+            f"📢 Current Channel: @{MAIN_CHANNEL}\n\n"
+            f"👉 Channel badalne ke liye:\n/setchannel [username]\n\n"
+            f"👉 Sabhi ko message bhejne ke liye:\n/broadcast [Aapka Message]\n\n"
+            f"👉 Withdraw requests: /view_withdraws")
     bot.send_message(message.chat.id, text)
+
+@bot.message_handler(commands=['broadcast'])
+def broadcast_cmd(message):
+    if str(message.from_user.id) != ADMIN_ID: return
+    
+    # Message alag karna command se
+    text_split = message.text.split(maxsplit=1)
+    if len(text_split) < 2:
+        return bot.send_message(message.chat.id, "❌ Galat format! Aise likhein: `/broadcast Hello dosto naya offer aaya hai`")
+        
+    broadcast_msg = text_split[1]
+    success_count = 0
+    
+    # Saare users ko loop chala kar message bhejna
+    for user_id in users_db.keys():
+        try:
+            bot.send_message(user_id, f"📢 ANNOUNCEMENT:\n\n{broadcast_msg}")
+            success_count += 1
+        except Exception as e:
+            # Agar kisi user ne bot ko block kar diya hai toh error skip hoga
+            continue
+            
+    bot.send_message(message.chat.id, f"✅ Broadcast Complete!\n\nTotal {success_count} users tak message pahonch gaya.")
 
 @bot.message_handler(commands=['setchannel'])
 def set_channel_cmd(message):
@@ -145,7 +172,7 @@ def handle_text(message):
         link = f"https://t.me/{BOT_USERNAME}?start={user_id}"
         bot.send_message(
             message.chat.id, 
-            f"🎁 Refer & Earn System\n\nHar ek dost ko join karwane pe aapko ₹{REFER_BONUS} milenge jab wo channel join karega!\n\n🔗 Your Refer Link:\n{link}"
+            f"🎁 Refer & Earn System\n\nHar ek dost ko join karwane pe aapko ₹{REFER_BONUS} milenge jaise hi wo channel join karega!\n\n🔗 Your Refer Link:\n{link}"
         )
         
     elif message.text == "📞 Support":
@@ -175,3 +202,4 @@ def process_withdraw(message):
     except: bot.send_message(message.chat.id, "❌ Format error!")
 
 bot.infinity_polling()
+        
